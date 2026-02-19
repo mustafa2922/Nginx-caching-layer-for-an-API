@@ -1,0 +1,50 @@
+services:
+
+  # ── MongoDB ──────────────────────────────────────────────────────────────
+  mongodb:
+    image: mongo:7          # use official MongoDB 7 image, no Dockerfile needed
+    container_name: mongodb
+    volumes:
+      # persist MongoDB data to your machine so it survives container restarts
+      - mongo_data:/data/db
+    networks:
+      - app_network
+    # MongoDB is NOT exposed to your host machine — only accessible inside the network
+    # This is a security best practice
+
+  # ── Express Backend ───────────────────────────────────────────────────────
+  backend:
+    build: ./backend        # build using backend/Dockerfile
+    container_name: backend
+    depends_on:
+      - mongodb             # wait for mongodb container to start before this one
+    networks:
+      - app_network
+    # Express is also NOT exposed externally — only nginx can reach it
+    # This forces all traffic to go through nginx
+
+  # ── nginx ─────────────────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine     # lightweight nginx image
+    container_name: nginx
+    ports:
+      - "80:80"             # expose port 80 to your Windows machine
+    volumes:
+      # Mount our nginx.conf into the container (replaces the default config)
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # Mount the cache directory so cached files persist between restarts
+      - ./nginx/cache:/var/cache/nginx
+    depends_on:
+      - backend
+    networks:
+      - app_network
+
+# ── Shared Network ────────────────────────────────────────────────────────────
+# All containers join this network and can reach each other by service name
+networks:
+  app_network:
+    driver: bridge
+
+# ── Named Volume ──────────────────────────────────────────────────────────────
+volumes:
+  mongo_data:
